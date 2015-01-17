@@ -1,0 +1,4 @@
+[Project]
+Name=opencvtest
+Manager=KDevCMakeManager
+VersionControl=kdevgit
