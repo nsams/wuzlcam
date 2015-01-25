@@ -48,12 +48,12 @@ void createTrackbars()
     sprintf(TrackbarName, "V_MIN", V_MIN);
     sprintf(TrackbarName, "V_MAX", V_MAX);
 
-    createTrackbar("H_MIN", trackbarWindowName, &H_MIN, H_MAX);
-    createTrackbar("H_MAX", trackbarWindowName, &H_MAX, H_MAX);
-    createTrackbar("S_MIN", trackbarWindowName, &S_MIN, S_MAX);
-    createTrackbar("S_MAX", trackbarWindowName, &S_MAX, S_MAX);
-    createTrackbar("V_MIN", trackbarWindowName, &V_MIN, V_MAX);
-    createTrackbar("V_MAX", trackbarWindowName, &V_MAX, V_MAX);
+    createTrackbar("H_MIN", trackbarWindowName, &H_MIN, 255);
+    createTrackbar("H_MAX", trackbarWindowName, &H_MAX, 255);
+    createTrackbar("S_MIN", trackbarWindowName, &S_MIN, 255);
+    createTrackbar("S_MAX", trackbarWindowName, &S_MAX, 255);
+    createTrackbar("V_MIN", trackbarWindowName, &V_MIN, 255);
+    createTrackbar("V_MAX", trackbarWindowName, &V_MAX, 255);
 }
 
 void drawObject(int x, int y, Mat &frame)
