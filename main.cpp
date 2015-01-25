@@ -11,6 +11,7 @@
 #include <time.h>
 
 #include "Table.h"
+#include "Fps.h"
 
 using namespace cv;
 
@@ -125,6 +126,8 @@ void trackBall(int &x, int &y, Mat threshold, Mat &cameraFeed){
     }
 }
 
+#define DEBUGPERF(x)
+
 int main(int argc, char* argv[])
 {
     Mat cameraFeed;
@@ -137,36 +140,77 @@ int main(int argc, char* argv[])
     Table table;
 
     //create slider bars for HSV filtering
-    //createTrackbars();
+//     createTrackbars();
 
     VideoCapture capture;
 
 //     capture.open(0);
 //     capture.open("/home/niko/Dropbox/VID_20150116_122947.mp4");
-//     capture.open("http://192.168.0.27:8080/?action=stream&dummy=param.mjpg");
+// //     capture.open("http://192.168.0.27:8080/?action=stream&dummy=param.mjpg");
     capture.open("/dev/stdin");
 
-    capture.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
-    capture.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
+    double videoWidth = capture.get(CV_CAP_PROP_FRAME_WIDTH);
+    double videoHeight = capture.get(CV_CAP_PROP_FRAME_HEIGHT);
+    double videoFps = capture.get(CV_CAP_PROP_FPS);
+
+    int expectedFrameTicks = 0;
+    {
+        Interval initialInterval;
+        int slowCalls = 0;
+        int initialGrabs = 0;
+        for (int i=0; i< 1000; i++) {
+            initialGrabs++;
+            double v = initialInterval.valueAsMSecAndReset();
+            if (v > 8.) {
+                slowCalls++;
+            }
+            capture.grab();
+            if (slowCalls > 20) break;
+        }
+        std::cout << "grabbed " << initialGrabs << " initial buffered frames" << std::endl;
+
+        initialInterval.reset();
+        int64 xx = cv::getTickCount();
+        double exec_time = (double)getTickCount();
+        for (int i=0; i< 500; i++) {
+            capture.grab();
+        }
+        expectedFrameTicks = (initialInterval.value() / 500);
+        double expectedFrameTime = (initialInterval.valueAsMSec() / 500.);
+        std::cout << "time for frame: " << expectedFrameTicks << " ticks = " << expectedFrameTime << " ms = " << 1000. / expectedFrameTime << "fps" << std::endl;
+        expectedFrameTicks = expectedFrameTicks * 1.01; //plus 1% to avoid dropping to many frames
+    }
 
     bool paused = false;
-    time_t startTime = time(0);
 
+    Fps fps;
+
+    Interval fullInterval;
     unsigned frameNum = 0;
     while (1) {
 
-        int runTime = time(0)-startTime;
-        if (frameNum % 10 == 0 && runTime) {
-            std::cout << "fps " << (frameNum / runTime) << std::endl;
-        }
+        DEBUGPERF( Interval interval; )
+
         if (!paused) {
             frameNum++;
+            while (fullInterval.value() > expectedFrameTicks * frameNum) {
+                int diff = (fullInterval.value() - expectedFrameTicks * frameNum);
+                double diffTime = ((double)diff) * 1000. / cv::getTickFrequency();
+                std::cout << "dropping frame, " << diffTime << "ms too old" << std::endl;
+                //std::cout << "dropping frame, tick " << (fullInterval.value() / frameNum) << " expected " << expectedFrameTicks << " msecs=" << fullInterval.valueAsMSec() / frameNum << std::endl;
+                capture.grab();
+                frameNum++;
+            }
             //store image to matrix
             capture.read(cameraFeed);
+            DEBUGPERF( std::cout << "read " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            fps.update();
             table.addFrame(cameraFeed);
+            DEBUGPERF( std::cout << "addFrame " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
             //convert frame from BGR to HSV colorspace
             cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
+            DEBUGPERF( std::cout << "2HSV " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
         }
 
 //         if (frameNum > 30) paused = true;
@@ -178,30 +222,43 @@ int main(int argc, char* argv[])
         //and emphasize the filtered object(s)
         morphOps(threshold);
 
+        DEBUGPERF( std::cout << "range, morph " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+
         //pass in thresholded frame to our object tracking function
         //this function will return the x and y coordinates of the
         //filtered object
         trackBall(x, y, threshold, cameraFeed);
+        DEBUGPERF( std::cout << "trackBall " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+
 
         if (!paused) {
             table.addPosition(x, y);
+            DEBUGPERF( std::cout << "addPostion " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
             table.paint(cameraFeed);
+            DEBUGPERF( std::cout << "table paint " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            char buffer[33];
+            sprintf(buffer, "%d fps", fps.get());
+            //std::cout << buffer << std::endl;
+            putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
         }
+
 
         //show frames
 //         imshow("Thresholded Image", threshold);
         imshow("Wuzl Cam", cameraFeed);
 //         imshow("HSV Image", HSV);
+        DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
         //delay 30ms so that screen can refresh.
         //image will not appear without this waitKey() command
         char e = cvWaitKey(1);
+        DEBUGPERF( std::cout << "waitKey " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
         // toggle pause with 'p' or ' '
         if( e=='p' || e==' ') paused = ! paused;
-        // close video with'esc'
-        if( e==27 ) break;
+        // close video with 'esc' or 'q'
+        if( e==27 || e=='q' ) break;
     }
 
     return 0;
