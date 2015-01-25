@@ -163,6 +163,8 @@ int main(int argc, char* argv[])
             frameNum++;
             //store image to matrix
             capture.read(cameraFeed);
+            table.addFrame(cameraFeed);
+
             //convert frame from BGR to HSV colorspace
             cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
         }

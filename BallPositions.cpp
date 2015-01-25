@@ -18,7 +18,7 @@ void BallPositions::add(int x, int y)
     );
 }
 
-void BallPositions::paint(Mat& frame)
+void BallPositions::paint(Mat& frame) const
 {
     unsigned sz = _positions.size();
     unsigned lengthPainted = 0;

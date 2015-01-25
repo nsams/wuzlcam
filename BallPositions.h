@@ -20,7 +20,7 @@ private:
 public:
     BallPositions() {};
 
-    void paint(cv::Mat &frame);
+    void paint(cv::Mat &frame) const;
     void add(int x, int y);
 
     int size();

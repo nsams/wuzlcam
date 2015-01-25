@@ -5,6 +5,7 @@
 #include "Table.h"
 
 #include <cv.h>
+#include <highgui.h>
 
 using namespace cv;
 Table::Table()
@@ -30,14 +31,30 @@ Table::~Table()
         delete _events.back();
         _events.pop_back();
     }
-}
 
+    while(!_lastFrames.empty()) {
+        delete _lastFrames.front();
+        _lastFrames.pop_front();
+    }
+}
 
 void Table::addPosition(int x, int y)
 {
     _detectedPositions.add(x, y);
     _detectEventForLastPosition();
 }
+
+void Table::addFrame(const cv::Mat &frame)
+{
+    Mat *temp = new Mat();
+    frame.copyTo(*temp);
+    if (_lastFrames.size() > 90*1) {
+        delete _lastFrames.front();
+        _lastFrames.pop_front();
+    }
+    _lastFrames.push_back(temp);
+}
+
 
 void Table::_detectEventForLastPosition()
 {
@@ -73,16 +90,17 @@ what we have to detect:
                 Event* ev = new Event(Event::SHOT, bar);
                 _events.push_back(ev);
                 std::cout << "EVENT: " << ev->toString() << std::endl;
+                //playbackLastFrames();
             }
         }
     }
 }
 
 
-void Table::paint(Mat& frame)
+void Table::paint(Mat& frame) const
 {
 
-    for(std::vector<Bar*>::iterator it = _bars.begin(); it != _bars.end(); ++it) {
+    for(std::vector<Bar*>::const_iterator it = _bars.begin(); it != _bars.end(); ++it) {
         (*it)->paint(frame);
     }
 
@@ -98,7 +116,7 @@ Bar* Table::_getNearestBar(int x, int y)
 {
     Bar* ret = 0;
     int minDistance = -1;
-    for(std::vector<Bar*>::iterator it = _bars.begin(); it != _bars.end(); ++it) {
+    for (std::vector<Bar*>::const_iterator it = _bars.begin(); it != _bars.end(); ++it) {
         int barK = (1080 - 0) / ((*it)->bottomX - (*it)->topX);
         int barD = 0 - barK * (*it)->topX;
         unsigned barX = (y - barD) / barK;
@@ -111,4 +129,17 @@ Bar* Table::_getNearestBar(int x, int y)
     }
     return ret;
 }
+
+void Table::playbackLastFrames() const
+{
+    for (std::deque<cv::Mat*>::const_iterator it = _lastFrames.begin(); it != _lastFrames.end(); ++it) {
+        cv::Mat temp;
+        (**it).copyTo(temp);
+        putText(temp, "Slow Motion", Point(0,50), 2, 1, Scalar(0,255,0), 2);
+        cv::imshow("Wuzl Cam", temp);
+        char e = cvWaitKey(99);
+        if (e == 27) break;
+    }
+}
+
 

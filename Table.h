@@ -9,6 +9,8 @@
 #include "Bar.h"
 #include "Event.h"
 
+#include <deque>
+
 namespace cv {
     class Mat;
 }
@@ -18,8 +20,10 @@ class Table {
 public:
     Table();
     ~Table();
-    void paint(cv::Mat &frame);
+    void paint(cv::Mat &frame) const;
     void addPosition(int x, int y);
+    void addFrame(const cv::Mat &frame);
+    void playbackLastFrames() const;
 
 private:
     void _detectEventForLastPosition();
@@ -30,6 +34,7 @@ private:
     BallPositions _detectedPositions;
     std::vector<Bar*> _bars;
     std::vector<Event*> _events;
+    std::deque<cv::Mat*> _lastFrames;
 };
 
 #endif
