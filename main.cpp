@@ -126,6 +126,13 @@ void trackBall(int &x, int &y, Mat threshold, Mat &cameraFeed){
     }
 }
 
+
+double frameDiffTime(Interval fullInterval, unsigned frameNum, int expectedFrameTicks)
+{
+    int diff = (fullInterval.value() - expectedFrameTicks * frameNum);
+    return ((double)diff) * 1000. / cv::getTickFrequency();
+}
+
 #define DEBUGPERF(x)
 
 int main(int argc, char* argv[])
@@ -191,33 +198,49 @@ int main(int argc, char* argv[])
 
         DEBUGPERF( Interval interval; )
 
+
         if (!paused) {
             frameNum++;
-            while (fullInterval.value() > expectedFrameTicks * frameNum) {
-                int diff = (fullInterval.value() - expectedFrameTicks * frameNum);
-                double diffTime = ((double)diff) * 1000. / cv::getTickFrequency();
-                std::cout << "dropping frame, " << diffTime << "ms too old" << std::endl;
-                //std::cout << "dropping frame, tick " << (fullInterval.value() / frameNum) << " expected " << expectedFrameTicks << " msecs=" << fullInterval.valueAsMSec() / frameNum << std::endl;
-                capture.grab();
-                frameNum++;
+
+            {
+                int fastCalls = 0;
+                while (frameDiffTime(fullInterval, frameNum, expectedFrameTicks) > 8.) {
+                    double diffTime = frameDiffTime(fullInterval, frameNum, expectedFrameTicks);
+                    std::cout << "dropping frame, " << diffTime << "ms too old" << std::endl;
+                    //std::cout << "dropping frame, tick " << (fullInterval.value() / frameNum) << " expected " << expectedFrameTicks << " msecs=" << fullInterval.valueAsMSec() / frameNum << std::endl;
+                    frameNum++;
+                    Interval dropInterval;
+                    capture.grab();
+                    if (dropInterval.valueAsMSec() < 8.) {
+                        fastCalls++;
+                        if (fastCalls > 3) {
+                            //got three frames in < 8ms
+                            frameNum = (fullInterval.value() / expectedFrameTicks) + 10;
+                            break;
+                        }
+                    }
+                }
             }
+
             //store image to matrix
             capture.read(cameraFeed);
             DEBUGPERF( std::cout << "read " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
             fps.update();
+
             table.addFrame(cameraFeed);
             DEBUGPERF( std::cout << "addFrame " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
             //convert frame from BGR to HSV colorspace
             cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
             DEBUGPERF( std::cout << "2HSV " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+
         }
 
 //         if (frameNum > 30) paused = true;
 
+
         //filter HSV image between values and store filtered image to threshold matrix
         inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
-
         //perform morphological operations on thresholded image to eliminate noise
         //and emphasize the filtered object(s)
         morphOps(threshold);
