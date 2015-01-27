@@ -57,11 +57,6 @@ void createTrackbars()
     createTrackbar("V_MAX", trackbarWindowName, &V_MAX, 255);
 }
 
-void drawObject(int x, int y, Mat &frame)
-{
-    circle(frame,Point(x,y),20,Scalar(0,255,0),2);
-}
-
 void morphOps(Mat &thresh)
 {
     //create structuring element that will be used to "dilate" and "erode" image.
@@ -123,9 +118,8 @@ void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
             }
 
             if (ballFound == true){
-                putText(cameraFeed, "Tracking Ball", Point(0,50), 2, 1, Scalar(0,255,0), 2);
                 //draw ball location on screen
-                drawObject(x,y,cameraFeed);
+                circle(cameraFeed, Point(x, y), 20, Scalar(0, 255, 0), 2);
             }
 
         } else {
