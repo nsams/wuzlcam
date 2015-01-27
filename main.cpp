@@ -154,14 +154,25 @@ int main(int argc, char* argv[])
 //     capture.open(0);
 //     capture.open("/home/niko/Dropbox/VID_20150116_122947.mp4");
 // //     capture.open("http://192.168.0.27:8080/?action=stream&dummy=param.mjpg");
-    capture.open("/dev/stdin");
+    if (argc < 1) {
+        std::cerr << "missing file argument" << std::endl;
+        return 1;
+    }
+
+    bool dropLateFrames = false;
+    if (strcmp(argv[1], "-") == 0) {
+        dropLateFrames = true;
+        capture.open("/dev/stdin");
+    } else {
+        capture.open(argv[1]);
+    }
 
     double videoWidth = capture.get(CV_CAP_PROP_FRAME_WIDTH);
     double videoHeight = capture.get(CV_CAP_PROP_FRAME_HEIGHT);
     double videoFps = capture.get(CV_CAP_PROP_FPS);
 
     int expectedFrameTicks = 0;
-    {
+    if (dropLateFrames) {
         Interval initialInterval;
         int slowCalls = 0;
         int initialGrabs = 0;
@@ -200,13 +211,13 @@ int main(int argc, char* argv[])
     int64 lastShownFrameTick = -1;
     while (1) {
 
-        DEBUGPERF( Interval interval; )
-
+        Interval frameInterval;
+        DEBUGPERF( Interval perfInterval; )
 
         if (!paused) {
             frameNum++;
 
-            {
+            if (dropLateFrames) {
                 int fastCalls = 0;
                 while (frameDiffTime(fullInterval, frameNum, expectedFrameTicks) > 8.) {
                     double diffTime = frameDiffTime(fullInterval, frameNum, expectedFrameTicks);
@@ -228,15 +239,15 @@ int main(int argc, char* argv[])
 
             //store image to matrix
             capture.read(cameraFeed);
-            DEBUGPERF( std::cout << "read " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            DEBUGPERF( std::cout << "read " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
             fps.update();
 
             table.addFrame(cameraFeed);
-            DEBUGPERF( std::cout << "addFrame " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            DEBUGPERF( std::cout << "addFrame " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
             //convert frame from BGR to HSV colorspace
             cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
-            DEBUGPERF( std::cout << "2HSV " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            DEBUGPERF( std::cout << "2HSV " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
         }
 
@@ -245,17 +256,18 @@ int main(int argc, char* argv[])
 
         //filter HSV image between values and store filtered image to threshold matrix
         inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
+
         //perform morphological operations on thresholded image to eliminate noise
         //and emphasize the filtered object(s)
         morphOps(threshold);
 
-        DEBUGPERF( std::cout << "range, morph " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+        DEBUGPERF( std::cout << "range, morph " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
         //pass in thresholded frame to our object tracking function
         //this function will return the x and y coordinates of the
         //filtered object
         trackBall(x, y, threshold, cameraFeed);
-        DEBUGPERF( std::cout << "trackBall " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+        DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
         if (!paused) {
@@ -284,8 +296,16 @@ int main(int argc, char* argv[])
 
             //delay 30ms so that screen can refresh.
             //image will not appear without this waitKey() command
-            char e = cvWaitKey(1);
-            DEBUGPERF( std::cout << "waitKey " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            char e;
+            if (dropLateFrames) {
+                e = cvWaitKey(1);
+            } else {
+                int frameDuration = 1000 / 90/*fps*/;
+                frameDuration -= (int)frameInterval.valueAsMSec();
+                if (frameDuration < 1) frameDuration = 1;
+                e = cvWaitKey(frameDuration);
+            }
+            DEBUGPERF( std::cout << "waitKey " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
             // toggle pause with 'p' or ' '
             if( e=='p' || e==' ') paused = ! paused;
