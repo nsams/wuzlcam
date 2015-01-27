@@ -188,12 +188,16 @@ int main(int argc, char* argv[])
         expectedFrameTicks = expectedFrameTicks * 1.01; //plus 1% to avoid dropping to many frames
     }
 
+                                           //fps
+    const int showFrameAfterTicks = ((1000 / 25) * cv::getTickFrequency()) / 1000;
+
     bool paused = false;
 
     Fps fps;
 
     Interval fullInterval;
     unsigned frameNum = 0;
+    int64 lastShownFrameTick = -1;
     while (1) {
 
         DEBUGPERF( Interval interval; )
@@ -257,31 +261,37 @@ int main(int argc, char* argv[])
         if (!paused) {
             table.addPosition(x, y);
             DEBUGPERF( std::cout << "addPostion " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
-            table.paint(cameraFeed);
-            DEBUGPERF( std::cout << "table paint " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
-            char buffer[33];
-            sprintf(buffer, "%d fps", fps.get());
-            //std::cout << buffer << std::endl;
-            putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
         }
 
 
-        //show frames
-//         imshow("Thresholded Image", threshold);
-        imshow("Wuzl Cam", cameraFeed);
-//         imshow("HSV Image", HSV);
-        DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+        //show frames at 25fps, don't show if video processed in higher fps
+        if (lastShownFrameTick == -1 || cv::getTickCount() > lastShownFrameTick+showFrameAfterTicks) {
+            lastShownFrameTick = cv::getTickCount();
+
+            if (!paused) {
+                table.paint(cameraFeed);
+                DEBUGPERF( std::cout << "table paint " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+                char buffer[33];
+                sprintf(buffer, "%d fps, frame %d", fps.get(), frameNum);
+                //std::cout << buffer << std::endl;
+                putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
+            }
+            //         imshow("Thresholded Image", threshold);
+            imshow("Wuzl Cam", cameraFeed);
+    //         imshow("HSV Image", HSV);
+            DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
-        //delay 30ms so that screen can refresh.
-        //image will not appear without this waitKey() command
-        char e = cvWaitKey(1);
-        DEBUGPERF( std::cout << "waitKey " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            //delay 30ms so that screen can refresh.
+            //image will not appear without this waitKey() command
+            char e = cvWaitKey(1);
+            DEBUGPERF( std::cout << "waitKey " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
-        // toggle pause with 'p' or ' '
-        if( e=='p' || e==' ') paused = ! paused;
-        // close video with 'esc' or 'q'
-        if( e==27 || e=='q' ) break;
+            // toggle pause with 'p' or ' '
+            if( e=='p' || e==' ') paused = ! paused;
+            // close video with 'esc' or 'q'
+            if( e==27 || e=='q' ) break;
+        }
     }
 
     return 0;
