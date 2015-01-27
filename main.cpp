@@ -126,6 +126,80 @@ void trackBall(int &x, int &y, Mat threshold, Mat &cameraFeed){
     }
 }
 
+void trackCorners(Mat HSV, Mat &cameraFeed){
+
+    Mat threshold;
+    inRange(HSV, Scalar(22, 126, 134), Scalar(66, 213, 238), threshold);
+    morphOps(threshold);
+
+    //these two vectors needed for output of findContours
+    vector< vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    //find contours of filtered image using openCV findContours function
+    findContours(threshold, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+
+    //use moments method to find our filtered object
+    int cornersFound = 0;
+    int numObjects = hierarchy.size();
+
+    if (numObjects >= 4) {
+        Point topLeft;
+        Point bottomLeft;
+        Point topRight;
+        Point bottomRight;
+        for (int index = 0; index >= 0; index = hierarchy[index][0]) {
+
+            Moments moment = moments((cv::Mat)contours[index]);
+            double area = moment.m00;
+
+            //if the area is less than 20 px by 20px then it is probably just noise
+            //if the area is the same as the 3/2 of the image size, probably just a bad filter
+            //we only want the object with the largest area so we safe a reference area each
+            //iteration and compare it to the area in the next iteration.
+            const int minCornerMarkerArea = 29*29; //TODO these are only for 640 with
+            const int maxCornerMarkerArea = 45*45;
+            if (area > minCornerMarkerArea && area < maxCornerMarkerArea) {
+                int x = moment.m10 / area;
+                int y = moment.m01 / area;
+                int halfRectSize = sqrt(area) / 2;
+                bool isValid = true;
+                if (x < 100 && y < 100) {
+                    //top left
+                    topLeft.x = x + halfRectSize;
+                    topLeft.y = y - halfRectSize;
+                } else if (x < 100 && y > HSV.size().height-200) {
+                    //bottom left
+                    bottomLeft.x = x + halfRectSize;
+                    bottomLeft.y = y + halfRectSize;
+                } else if (x > HSV.size().width-100 && y < 100) {
+                    //top right
+                    topRight.x = x - halfRectSize;
+                    topRight.y = y - halfRectSize;
+                } else if (x > HSV.size().width-100 && y > HSV.size().height-200) {
+                    //bottom right
+                    bottomRight.x = x - halfRectSize;
+                    bottomRight.y = y + halfRectSize;
+                } else {
+                    isValid = false;
+                }
+                if (isValid) {
+                    y -= sqrt(area) / 2;
+                    cornersFound++;
+                    //rectangle(cameraFeed, Point(x,y), Point(x+35,y+35), Scalar(0,255,255), 2);
+                }
+            }
+        }
+        if (cornersFound == 4) {
+            Rect myROI(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
+            Mat croppedImage = cameraFeed(myROI);
+//             imshow("Cropped", croppedImage);
+        }
+    } else {
+        putText(cameraFeed, "TOO MUCH NOISE TO FIND CORNERS! ADJUST FILTER", Point(0,50), 1, 2, Scalar(0,0,255), 2);
+    }
+}
+
 
 double frameDiffTime(Interval fullInterval, unsigned frameNum, int expectedFrameTicks)
 {
@@ -140,6 +214,7 @@ int main(int argc, char* argv[])
     Mat cameraFeed;
     Mat HSV;
     Mat threshold;
+    Mat thresholdTableCorners;
 
     //x and y values for the location of the ball
     int x=0, y=0;
@@ -253,6 +328,7 @@ int main(int argc, char* argv[])
 
 //         if (frameNum > 30) paused = true;
 
+        trackCorners(HSV, cameraFeed);
 
         //filter HSV image between values and store filtered image to threshold matrix
         inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
@@ -289,6 +365,7 @@ int main(int argc, char* argv[])
                 putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
             }
             //         imshow("Thresholded Image", threshold);
+//         imshow("Thresholded Image Corners", thresholdTableCorners);
             imshow("Wuzl Cam", cameraFeed);
     //         imshow("HSV Image", HSV);
             DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
