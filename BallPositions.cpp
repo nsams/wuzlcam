@@ -28,7 +28,7 @@ void BallPositions::paint(Mat& frame) const
         BallPosition p2 = _positions.at(i-1);
         line(frame, Point(p1.x, p1.y), Point(p2.x, p2.y), Scalar(0,255,0), 2);
         lengthPainted += p1.speed;
-        if (lengthPainted > 1000) break;
+        if (lengthPainted > 300) break;
     }
 }
 
