@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
     Table table;
 
     //create slider bars for HSV filtering
-//     createTrackbars();
+    createTrackbars();
 
     VideoCapture capture;
 
@@ -289,6 +289,7 @@ int main(int argc, char* argv[])
     Fps fps;
 
     int pauseAtFrameNum = -1;
+    pauseAtFrameNum = 1;
 
     Interval fullInterval;
     unsigned frameNum = 0;
