@@ -273,6 +273,11 @@ int main(int argc, char* argv[])
         double expectedFrameTime = (initialInterval.valueAsMSec() / 500.);
         std::cout << "time for frame: " << expectedFrameTicks << " ticks = " << expectedFrameTime << " ms = " << 1000. / expectedFrameTime << "fps" << std::endl;
         expectedFrameTicks = expectedFrameTicks * 1.01; //plus 1% to avoid dropping to many frames
+    } else {
+        //skip first few frames to wait for correct white balance of camera
+        for (int i=0; i< 200; i++) {
+            capture.grab();
+        }
     }
 
                                            //fps
@@ -337,17 +342,16 @@ int main(int argc, char* argv[])
             cameraFeed = cameraFeed(tableRect);
             HSV = HSV(tableRect);
 //             imshow("Cropped", croppedImage);
+
+            trackBall(x, y, HSV, cameraFeed);
+            DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
+
+
+            if (!paused) {
+                table.addPosition(x, y);
+                DEBUGPERF( std::cout << "addPostion " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            }
         }
-
-        trackBall(x, y, HSV, cameraFeed);
-        DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
-
-
-        if (!paused) {
-            table.addPosition(x, y);
-            DEBUGPERF( std::cout << "addPostion " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
-        }
-
 
         //show frames at 25fps, don't show if video processed in higher fps
         if (lastShownFrameTick == -1 || cv::getTickCount() > lastShownFrameTick+showFrameAfterTicks) {
