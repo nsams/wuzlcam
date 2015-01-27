@@ -10,14 +10,14 @@
 using namespace cv;
 Table::Table()
 {
-    _bars.push_back(new Bar(1, 0, Bar::GOALIE, 1620, 1580));
-    _bars.push_back(new Bar(2, 0, Bar::DEFENSE, 1330, 1250));
-    _bars.push_back(new Bar(3, 1, Bar::STRIKER, 1100, 930));
-    _bars.push_back(new Bar(4, 0, Bar::MIDFIELD, 885, 664));
-    _bars.push_back(new Bar(5, 1, Bar::MIDFIELD, 703, 432));
-    _bars.push_back(new Bar(6, 0, Bar::STRIKER, 546+30, 232+30));
-    _bars.push_back(new Bar(7, 1, Bar::DEFENSE, 403+30, 55+30));
-    _bars.push_back(new Bar(8, 1, Bar::GOALIE, 274+30, -100+30));
+    _bars.push_back(new Bar(1, 0, Bar::GOALIE, 40, 40));
+    _bars.push_back(new Bar(2, 0, Bar::DEFENSE, 106, 106));
+    _bars.push_back(new Bar(3, 1, Bar::STRIKER, 174, 174));
+    _bars.push_back(new Bar(4, 0, Bar::MIDFIELD, 244, 244));
+    _bars.push_back(new Bar(5, 1, Bar::MIDFIELD, 315, 315));
+    _bars.push_back(new Bar(6, 0, Bar::STRIKER, 380, 380));
+    _bars.push_back(new Bar(7, 1, Bar::DEFENSE, 450, 450));
+    _bars.push_back(new Bar(8, 1, Bar::GOALIE, 518, 518));
 }
 
 Table::~Table()
@@ -117,9 +117,12 @@ Bar* Table::_getNearestBar(int x, int y)
     Bar* ret = 0;
     int minDistance = -1;
     for (std::vector<Bar*>::const_iterator it = _bars.begin(); it != _bars.end(); ++it) {
-        int barK = (1080 - 0) / ((*it)->bottomX - (*it)->topX);
-        int barD = 0 - barK * (*it)->topX;
-        unsigned barX = (y - barD) / barK;
+        unsigned barX = (*it)->topX;
+        if ((*it)->bottomX != (*it)->topX) {
+            int barK = (480 - 0) / ((*it)->bottomX - (*it)->topX);
+            int barD = 0 - barK * (*it)->topX;
+            barX = (y - barD) / barK;
+        }
         unsigned distance = abs(barX - x);
 //         std::cout << "bar " << (*it).number << " distance=" << distance << std::endl;
         if (minDistance == -1 || distance < minDistance) {
