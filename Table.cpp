@@ -86,7 +86,7 @@ what we have to detect:
             //std::cout << "SHOT!!! at frame " << curPos.frameNum << " speedChange=" << speedChange << std::endl;
 //             std::cout << "bar number " << _getNearestBar(prevPos)->toString() << std::endl;
             Bar* bar = _getNearestBar(prevPos);
-            if (!lastEvent || (lastEvent->type != Event::SHOT || lastEvent->byBar != bar)) {
+            if (bar && (!lastEvent || (lastEvent->type != Event::SHOT || lastEvent->byBar != bar))) {
                 Event* ev = new Event(Event::SHOT, bar);
                 _events.push_back(ev);
                 std::cout << "EVENT: " << ev->toString() << std::endl;

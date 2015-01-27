@@ -17,10 +17,10 @@ using namespace cv;
 
 //initial min and max HSV filter values.
 int H_MIN = 22;
-int H_MAX = 33;
+int H_MAX = 50;
 int S_MIN = 83;
 int S_MAX = 200;
-int V_MIN = 142;
+int V_MIN = 135;
 int V_MAX = 237;
 
 //default capture width and height
@@ -31,7 +31,7 @@ const int FRAME_HEIGHT = 480;
 const int MAX_NUM_OBJECTS = 50;
 
 //minimum and maximum object area
-const int MIN_OBJECT_AREA = 3*3;
+const int MIN_OBJECT_AREA = 2*2;
 const int MAX_OBJECT_AREA = FRAME_HEIGHT*FRAME_WIDTH/1.5;
 
 void createTrackbars()
@@ -76,17 +76,25 @@ void morphOps(Mat &thresh)
     dilate(thresh,thresh,dilateElement);
 }
 
-void trackBall(int &x, int &y, Mat threshold, Mat &cameraFeed){
+void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
+{
+    Mat threshold;
 
-    Mat temp;
-    threshold.copyTo(temp);
+    //filter HSV image between values and store filtered image to threshold matrix
+    inRange(HSV, Scalar(H_MIN,S_MIN,V_MIN), Scalar(H_MAX,S_MAX,V_MAX), threshold);
+
+    //perform morphological operations on thresholded image to eliminate noise
+    //and emphasize the filtered object(s)
+    morphOps(threshold);
+
+    imshow("Thresholded Image", threshold);
 
     //these two vectors needed for output of findContours
     vector< vector<Point> > contours;
     vector<Vec4i> hierarchy;
 
     //find contours of filtered image using openCV findContours function
-    findContours(temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+    findContours(threshold, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
 
     //use moments method to find our filtered object
     double refArea = 0;
@@ -126,7 +134,7 @@ void trackBall(int &x, int &y, Mat threshold, Mat &cameraFeed){
     }
 }
 
-void trackCorners(Mat HSV, Mat &cameraFeed){
+Rect findTableCorners(Mat HSV, Mat &cameraFeed){
 
     Mat threshold;
     inRange(HSV, Scalar(22, 126, 134), Scalar(66, 213, 238), threshold);
@@ -190,14 +198,14 @@ void trackCorners(Mat HSV, Mat &cameraFeed){
                 }
             }
         }
+//         imshow("Thresholded Image Corners", threshold);
         if (cornersFound == 4) {
-            Rect myROI(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
-            Mat croppedImage = cameraFeed(myROI);
-//             imshow("Cropped", croppedImage);
+            return Rect(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
         }
     } else {
         putText(cameraFeed, "TOO MUCH NOISE TO FIND CORNERS! ADJUST FILTER", Point(0,50), 1, 2, Scalar(0,0,255), 2);
     }
+    return Rect();
 }
 
 
@@ -214,7 +222,6 @@ int main(int argc, char* argv[])
     Mat cameraFeed;
     Mat HSV;
     Mat threshold;
-    Mat thresholdTableCorners;
 
     //x and y values for the location of the ball
     int x=0, y=0;
@@ -278,8 +285,11 @@ int main(int argc, char* argv[])
     const int showFrameAfterTicks = ((1000 / 25) * cv::getTickFrequency()) / 1000;
 
     bool paused = false;
+    bool slowMotion = false;
 
     Fps fps;
+
+    int pauseAtFrameNum = -1;
 
     Interval fullInterval;
     unsigned frameNum = 0;
@@ -326,23 +336,16 @@ int main(int argc, char* argv[])
 
         }
 
-//         if (frameNum > 30) paused = true;
+        if (frameNum == pauseAtFrameNum) paused = true;
 
-        trackCorners(HSV, cameraFeed);
+        Rect tableRect =  findTableCorners(HSV, cameraFeed);
+        if (tableRect.width) {
+            cameraFeed = cameraFeed(tableRect);
+            HSV = HSV(tableRect);
+//             imshow("Cropped", croppedImage);
+        }
 
-        //filter HSV image between values and store filtered image to threshold matrix
-        inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),threshold);
-
-        //perform morphological operations on thresholded image to eliminate noise
-        //and emphasize the filtered object(s)
-        morphOps(threshold);
-
-        DEBUGPERF( std::cout << "range, morph " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
-
-        //pass in thresholded frame to our object tracking function
-        //this function will return the x and y coordinates of the
-        //filtered object
-        trackBall(x, y, threshold, cameraFeed);
+        trackBall(x, y, HSV, cameraFeed);
         DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
@@ -364,8 +367,6 @@ int main(int argc, char* argv[])
                 //std::cout << buffer << std::endl;
                 putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
             }
-            //         imshow("Thresholded Image", threshold);
-//         imshow("Thresholded Image Corners", thresholdTableCorners);
             imshow("Wuzl Cam", cameraFeed);
     //         imshow("HSV Image", HSV);
             DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
@@ -378,6 +379,7 @@ int main(int argc, char* argv[])
                 e = cvWaitKey(1);
             } else {
                 int frameDuration = 1000 / 90/*fps*/;
+                if (slowMotion) frameDuration *= 3;
                 frameDuration -= (int)frameInterval.valueAsMSec();
                 if (frameDuration < 1) frameDuration = 1;
                 e = cvWaitKey(frameDuration);
@@ -385,7 +387,16 @@ int main(int argc, char* argv[])
             DEBUGPERF( std::cout << "waitKey " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
             // toggle pause with 'p' or ' '
-            if( e=='p' || e==' ') paused = ! paused;
+            if( e=='p') paused = ! paused;
+            // slow motion with 's'
+            if (e=='s') {
+                slowMotion = ! slowMotion;
+            }
+            // step with ' '
+            if (e==' ') {
+                paused = false;
+                pauseAtFrameNum = frameNum+1;
+            }
             // close video with 'esc' or 'q'
             if( e==27 || e=='q' ) break;
         }
