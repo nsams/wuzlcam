@@ -18,6 +18,11 @@ void BallPositions::add(int x, int y)
     );
 }
 
+void BallPositions::popLast()
+{
+    _positions.pop_back();
+}
+
 void BallPositions::paint(Mat& frame) const
 {
     unsigned sz = _positions.size();

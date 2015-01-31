@@ -22,6 +22,7 @@ public:
 
     void paint(cv::Mat &frame) const;
     void add(int x, int y);
+    void popLast();
 
     int size();
     BallPosition at(int index);

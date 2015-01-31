@@ -15,6 +15,7 @@
 
 using namespace cv;
 
+
 //initial min and max HSV filter values.
 int H_MIN = 22;
 int H_MAX = 50;
@@ -132,7 +133,18 @@ Rect findTableCorners(Mat HSV, Mat &cameraFeed){
 
     Mat threshold;
     inRange(HSV, Scalar(22, 126, 134), Scalar(66, 213, 238), threshold);
-    morphOps(threshold);
+
+    //create structuring element that will be used to "dilate" and "erode" image.
+    //the element chosen here is a 3px by 3px rectangle
+    Mat erodeElement = getStructuringElement(MORPH_RECT, Size(3, 3));
+    erode(threshold,threshold,erodeElement);
+    erode(threshold,threshold,erodeElement);
+
+    //dilate with larger element so make sure object is nicely visible
+    Mat dilateElement = getStructuringElement(MORPH_RECT, Size(8, 8));
+    dilate(threshold,threshold,dilateElement);
+    dilate(threshold,threshold,dilateElement);
+
 
     //these two vectors needed for output of findContours
     vector< vector<Point> > contours;
@@ -214,6 +226,7 @@ double frameDiffTime(Interval fullInterval, unsigned frameNum, int expectedFrame
 int main(int argc, char* argv[])
 {
     Mat cameraFeed;
+    Mat capturedFrame;
     Mat HSV;
     Mat threshold;
 
@@ -291,6 +304,7 @@ int main(int argc, char* argv[])
     int pauseAtFrameNum = -1;
     pauseAtFrameNum = 1;
 
+    Interval lastShownFrameInterval;
     Interval fullInterval;
     unsigned frameNum = 0;
     int64 lastShownFrameTick = -1;
@@ -334,11 +348,20 @@ int main(int argc, char* argv[])
             cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
             DEBUGPERF( std::cout << "2HSV " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
+            cameraFeed.copyTo(capturedFrame);
+
+        } else {
+            capturedFrame.copyTo(cameraFeed);
+
+            //convert frame from BGR to HSV colorspace
+            cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
+            DEBUGPERF( std::cout << "2HSV " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
         }
 
         if (frameNum == pauseAtFrameNum) paused = true;
 
         Rect tableRect =  findTableCorners(HSV, cameraFeed);
+        std::cout << tableRect.width << std::endl;
         if (tableRect.width) {
             cameraFeed = cameraFeed(tableRect);
             HSV = HSV(tableRect);
@@ -358,14 +381,13 @@ int main(int argc, char* argv[])
         if (lastShownFrameTick == -1 || cv::getTickCount() > lastShownFrameTick+showFrameAfterTicks) {
             lastShownFrameTick = cv::getTickCount();
 
-            if (!paused) {
-                table.paint(cameraFeed);
-                DEBUGPERF( std::cout << "table paint " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
-                char buffer[33];
-                sprintf(buffer, "%d fps, frame %d", fps.get(), frameNum);
-                //std::cout << buffer << std::endl;
-                putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
-            }
+            table.paint(cameraFeed);
+            DEBUGPERF( std::cout << "table paint " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
+            char buffer[33];
+            sprintf(buffer, "%d fps, frame %d", fps.get(), frameNum);
+            //std::cout << buffer << std::endl;
+            putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
+
             imshow("Wuzl Cam", cameraFeed);
     //         imshow("HSV Image", HSV);
             DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
@@ -377,11 +399,15 @@ int main(int argc, char* argv[])
             if (dropLateFrames) {
                 e = cvWaitKey(1);
             } else {
-                int frameDuration = 1000 / 90/*fps*/;
+                int frameDuration = 1000 / 25/*fps*/;
                 if (slowMotion) frameDuration *= 3;
-                frameDuration -= (int)frameInterval.valueAsMSec();
+//                 std::cout << frameDuration << " " << lastShownFrameInterval.valueAsMSec();
+                frameDuration -= (int)lastShownFrameInterval.valueAsMSec();
                 if (frameDuration < 1) frameDuration = 1;
+//                 std::cout << " wait " << frameDuration;
                 e = cvWaitKey(frameDuration);
+//                 std::cout << " now at " << lastShownFrameInterval.valueAsMSec() << std::endl;
+                lastShownFrameInterval.reset();
             }
             DEBUGPERF( std::cout << "waitKey " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
@@ -390,6 +416,14 @@ int main(int argc, char* argv[])
             // slow motion with 's'
             if (e=='s') {
                 slowMotion = ! slowMotion;
+            }
+            // reverse with 'r'
+            if (e=='r') {
+                frameNum--;
+                paused = true;
+                Mat* f = table.popFrame();
+                f->copyTo(capturedFrame);
+                delete f;
             }
             // step with ' '
             if (e==' ') {

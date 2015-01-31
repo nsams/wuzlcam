@@ -23,6 +23,7 @@ public:
     void paint(cv::Mat &frame) const;
     void addPosition(int x, int y);
     void addFrame(const cv::Mat &frame);
+    cv::Mat* popFrame();
     void playbackLastFrames() const;
 
 private:

@@ -55,6 +55,18 @@ void Table::addFrame(const cv::Mat &frame)
     _lastFrames.push_back(temp);
 }
 
+Mat *Table::popFrame()
+{
+    if (!_lastFrames.empty()) {
+        Mat *ret = _lastFrames.back();
+        _lastFrames.pop_back();
+        _detectedPositions.popLast();
+        return ret;
+    }
+    return 0;
+}
+
+
 
 void Table::_detectEventForLastPosition()
 {
