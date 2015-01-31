@@ -5,61 +5,7 @@
 #ifndef FPS_H
 #define FPS_H
 
-// #include <sys/time.h>
-#include <cv.h>
-
-int64 GetTickCount()
-{
-    return cv::getTickCount();
- }
-
-class Interval
-{
-
-public:
-    // Ctor
-    inline Interval() : initial_(GetTickCount())
-    {
-    }
-
-    // Dtor
-    virtual ~Interval()
-    {
-    }
-
-    inline int64 value() const
-    {
-        return GetTickCount()-initial_;
-    }
-
-    inline double valueAsMSec() const
-    {
-        return ((double)value()) * 1000. / cv::getTickFrequency();
-    }
-
-    inline unsigned int valueAndReset()
-    {
-        int64 v = GetTickCount();
-        unsigned int ret = v-initial_;
-        initial_ = v;
-        return ret;
-    }
-
-    inline double valueAsMSecAndReset()
-    {
-        double ret = valueAsMSec();
-        reset();
-        return ret;
-    }
-
-    inline void reset()
-    {
-        initial_ = GetTickCount();
-    }
-
-private:
-    int64 initial_;
-};
+#include "Interval.h"
 
 class Fps
 {
