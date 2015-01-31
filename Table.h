@@ -39,6 +39,9 @@ private:
     std::vector<Bar*> _bars;
     std::vector<Event*> _events;
     std::deque<cv::Mat*> _lastFrames;
+
+    int _updateTableIn;
+    cv::Rect _lastTablePosition;
 };
 
 #endif

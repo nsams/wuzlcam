@@ -8,7 +8,7 @@
 #include <highgui.h>
 
 using namespace cv;
-Table::Table()
+Table::Table(): _updateTableIn(0)
 {
     _bars.push_back(new Bar(1, 0, Bar::GOALIE, 40, 40));
     _bars.push_back(new Bar(2, 0, Bar::DEFENSE, 106, 106));
@@ -159,6 +159,10 @@ void Table::playbackLastFrames() const
 
 cv::Rect Table::findTable(Mat HSV)
 {
+    if (_updateTableIn > 0) {
+        return _lastTablePosition;
+    }
+
     Mat threshold;
     inRange(HSV, Scalar(22, 126, 134), Scalar(66, 213, 238), threshold);
 
@@ -234,7 +238,9 @@ cv::Rect Table::findTable(Mat HSV)
         }
 //         imshow("Thresholded Image Corners", threshold);
         if (cornersFound == 4) {
-            return Rect(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
+            _lastTablePosition = Rect(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
+            _updateTableIn = 90; //update every second
+            return _lastTablePosition;
         }
     } else {
         std::cout << "TOO MUCH NOISE TO FIND CORNERS! ADJUST FILTER" << std::endl;
