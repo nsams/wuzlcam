@@ -18,7 +18,7 @@ using namespace cv;
 
 //initial min and max HSV filter values.
 int H_MIN = 22;
-int H_MAX = 50;
+int H_MAX = 45;
 int S_MIN = 83;
 int S_MAX = 200;
 int V_MIN = 135;
@@ -32,7 +32,7 @@ const int FRAME_HEIGHT = 480;
 const int MAX_NUM_OBJECTS = 50;
 
 //minimum and maximum object area
-const int MIN_OBJECT_AREA = 2*2;
+const int MIN_OBJECT_AREA = 4*4;
 const int MAX_OBJECT_AREA = FRAME_HEIGHT*FRAME_WIDTH/1.5;
 
 void createTrackbars()
@@ -64,12 +64,12 @@ void morphOps(Mat &thresh)
     //the element chosen here is a 3px by 3px rectangle
     Mat erodeElement = getStructuringElement(MORPH_RECT, Size(3, 3));
     erode(thresh,thresh,erodeElement);
-    erode(thresh,thresh,erodeElement);
+//     erode(thresh,thresh,erodeElement);
 
     //dilate with larger element so make sure object is nicely visible
-    Mat dilateElement = getStructuringElement(MORPH_RECT, Size(8, 8));
+    Mat dilateElement = getStructuringElement(MORPH_RECT, Size(4, 4));
     dilate(thresh,thresh,dilateElement);
-    dilate(thresh,thresh,dilateElement);
+//     dilate(thresh,thresh,dilateElement);
 }
 
 void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
@@ -111,6 +111,7 @@ void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
                 if (area > MIN_OBJECT_AREA && area < MAX_OBJECT_AREA && area > refArea) {
                     x = moment.m10 / area;
                     y = moment.m01 / area;
+                    std::cout << "area " << area << std::endl;
                     ballFound = true;
                     refArea = area;
                 } else {
@@ -129,92 +130,6 @@ void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
     }
 }
 
-Rect findTableCorners(Mat HSV, Mat &cameraFeed){
-
-    Mat threshold;
-    inRange(HSV, Scalar(22, 126, 134), Scalar(66, 213, 238), threshold);
-
-    //create structuring element that will be used to "dilate" and "erode" image.
-    //the element chosen here is a 3px by 3px rectangle
-    Mat erodeElement = getStructuringElement(MORPH_RECT, Size(3, 3));
-    erode(threshold,threshold,erodeElement);
-    erode(threshold,threshold,erodeElement);
-
-    //dilate with larger element so make sure object is nicely visible
-    Mat dilateElement = getStructuringElement(MORPH_RECT, Size(8, 8));
-    dilate(threshold,threshold,dilateElement);
-    dilate(threshold,threshold,dilateElement);
-
-
-    //these two vectors needed for output of findContours
-    vector< vector<Point> > contours;
-    vector<Vec4i> hierarchy;
-
-    //find contours of filtered image using openCV findContours function
-    findContours(threshold, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
-
-    //use moments method to find our filtered object
-    int cornersFound = 0;
-    int numObjects = hierarchy.size();
-
-    if (numObjects >= 4) {
-        Point topLeft;
-        Point bottomLeft;
-        Point topRight;
-        Point bottomRight;
-        for (int index = 0; index >= 0; index = hierarchy[index][0]) {
-
-            Moments moment = moments((cv::Mat)contours[index]);
-            double area = moment.m00;
-
-            //if the area is less than 20 px by 20px then it is probably just noise
-            //if the area is the same as the 3/2 of the image size, probably just a bad filter
-            //we only want the object with the largest area so we safe a reference area each
-            //iteration and compare it to the area in the next iteration.
-            const int minCornerMarkerArea = 29*29; //TODO these are only for 640 with
-            const int maxCornerMarkerArea = 45*45;
-            if (area > minCornerMarkerArea && area < maxCornerMarkerArea) {
-                int x = moment.m10 / area;
-                int y = moment.m01 / area;
-                int halfRectSize = sqrt(area) / 2;
-                bool isValid = true;
-                if (x < 100 && y < 100) {
-                    //top left
-                    topLeft.x = x + halfRectSize;
-                    topLeft.y = y - halfRectSize;
-                } else if (x < 100 && y > HSV.size().height-200) {
-                    //bottom left
-                    bottomLeft.x = x + halfRectSize;
-                    bottomLeft.y = y + halfRectSize;
-                } else if (x > HSV.size().width-100 && y < 100) {
-                    //top right
-                    topRight.x = x - halfRectSize;
-                    topRight.y = y - halfRectSize;
-                } else if (x > HSV.size().width-100 && y > HSV.size().height-200) {
-                    //bottom right
-                    bottomRight.x = x - halfRectSize;
-                    bottomRight.y = y + halfRectSize;
-                } else {
-                    isValid = false;
-                }
-                if (isValid) {
-                    y -= sqrt(area) / 2;
-                    cornersFound++;
-                    //rectangle(cameraFeed, Point(x,y), Point(x+35,y+35), Scalar(0,255,255), 2);
-                }
-            }
-        }
-//         imshow("Thresholded Image Corners", threshold);
-        if (cornersFound == 4) {
-            return Rect(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
-        }
-    } else {
-        putText(cameraFeed, "TOO MUCH NOISE TO FIND CORNERS! ADJUST FILTER", Point(0,50), 1, 2, Scalar(0,0,255), 2);
-    }
-    return Rect();
-}
-
-
 double frameDiffTime(Interval fullInterval, unsigned frameNum, int expectedFrameTicks)
 {
     int diff = (fullInterval.value() - expectedFrameTicks * frameNum);
@@ -231,7 +146,7 @@ int main(int argc, char* argv[])
     Mat threshold;
 
     //x and y values for the location of the ball
-    int x=0, y=0;
+    int x=-1, y=-1;
 
     Table table;
 
@@ -358,24 +273,23 @@ int main(int argc, char* argv[])
             DEBUGPERF( std::cout << "2HSV " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
         }
 
-        if (frameNum == pauseAtFrameNum) paused = true;
 
-        Rect tableRect =  findTableCorners(HSV, cameraFeed);
-        std::cout << tableRect.width << std::endl;
+        Rect tableRect =  table.findTable(HSV);
         if (tableRect.width) {
             cameraFeed = cameraFeed(tableRect);
             HSV = HSV(tableRect);
-//             imshow("Cropped", croppedImage);
 
             trackBall(x, y, HSV, cameraFeed);
             DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
-            if (!paused) {
+            if (!paused && x != -1 && y != -1) {
                 table.addPosition(x, y);
                 DEBUGPERF( std::cout << "addPostion " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
             }
         }
+
+        if (frameNum == pauseAtFrameNum) paused = true;
 
         //show frames at 25fps, don't show if video processed in higher fps
         if (lastShownFrameTick == -1 || cv::getTickCount() > lastShownFrameTick+showFrameAfterTicks) {
@@ -397,16 +311,16 @@ int main(int argc, char* argv[])
             //image will not appear without this waitKey() command
             char e;
             if (dropLateFrames) {
-                e = cvWaitKey(1);
+                e = waitKey(1);
             } else {
                 int frameDuration = 1000 / 25/*fps*/;
                 if (slowMotion) frameDuration *= 3;
 //                 std::cout << frameDuration << " " << lastShownFrameInterval.valueAsMSec();
                 frameDuration -= (int)lastShownFrameInterval.valueAsMSec();
                 if (frameDuration < 1) frameDuration = 1;
-//                 std::cout << " wait " << frameDuration;
-                e = cvWaitKey(frameDuration);
-//                 std::cout << " now at " << lastShownFrameInterval.valueAsMSec() << std::endl;
+                std::cout << " wait " << frameDuration;
+                e = waitKey(frameDuration);
+                std::cout << " now at " << lastShownFrameInterval.valueAsMSec() << std::endl;
                 lastShownFrameInterval.reset();
             }
             DEBUGPERF( std::cout << "waitKey " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )

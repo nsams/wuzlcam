@@ -157,4 +157,89 @@ void Table::playbackLastFrames() const
     }
 }
 
+cv::Rect Table::findTable(Mat HSV)
+{
+    Mat threshold;
+    inRange(HSV, Scalar(22, 126, 134), Scalar(66, 213, 238), threshold);
+
+    //create structuring element that will be used to "dilate" and "erode" image.
+    //the element chosen here is a 3px by 3px rectangle
+    Mat erodeElement = getStructuringElement(MORPH_RECT, Size(3, 3));
+    erode(threshold,threshold,erodeElement);
+    erode(threshold,threshold,erodeElement);
+
+    //dilate with larger element so make sure object is nicely visible
+    Mat dilateElement = getStructuringElement(MORPH_RECT, Size(8, 8));
+    dilate(threshold,threshold,dilateElement);
+    dilate(threshold,threshold,dilateElement);
+
+
+    //these two vectors needed for output of findContours
+    vector< vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    //find contours of filtered image using openCV findContours function
+    findContours(threshold, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+
+    //use moments method to find our filtered object
+    int cornersFound = 0;
+    int numObjects = hierarchy.size();
+
+    if (numObjects >= 4) {
+        Point topLeft;
+        Point bottomLeft;
+        Point topRight;
+        Point bottomRight;
+        for (int index = 0; index >= 0; index = hierarchy[index][0]) {
+
+            Moments moment = moments((cv::Mat)contours[index]);
+            double area = moment.m00;
+
+            //if the area is less than 20 px by 20px then it is probably just noise
+            //if the area is the same as the 3/2 of the image size, probably just a bad filter
+            //we only want the object with the largest area so we safe a reference area each
+            //iteration and compare it to the area in the next iteration.
+            const int minCornerMarkerArea = 29*29; //TODO these are only for 640 with
+            const int maxCornerMarkerArea = 45*45;
+            if (area > minCornerMarkerArea && area < maxCornerMarkerArea) {
+                int x = moment.m10 / area;
+                int y = moment.m01 / area;
+                int halfRectSize = sqrt(area) / 2;
+                bool isValid = true;
+                if (x < 100 && y < 100) {
+                    //top left
+                    topLeft.x = x + halfRectSize;
+                    topLeft.y = y - halfRectSize;
+                } else if (x < 100 && y > HSV.size().height-200) {
+                    //bottom left
+                    bottomLeft.x = x + halfRectSize;
+                    bottomLeft.y = y + halfRectSize;
+                } else if (x > HSV.size().width-100 && y < 100) {
+                    //top right
+                    topRight.x = x - halfRectSize;
+                    topRight.y = y - halfRectSize;
+                } else if (x > HSV.size().width-100 && y > HSV.size().height-200) {
+                    //bottom right
+                    bottomRight.x = x - halfRectSize;
+                    bottomRight.y = y + halfRectSize;
+                } else {
+                    isValid = false;
+                }
+                if (isValid) {
+                    y -= sqrt(area) / 2;
+                    cornersFound++;
+                    //rectangle(cameraFeed, Point(x,y), Point(x+35,y+35), Scalar(0,255,255), 2);
+                }
+            }
+        }
+//         imshow("Thresholded Image Corners", threshold);
+        if (cornersFound == 4) {
+            return Rect(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
+        }
+    } else {
+        std::cout << "TOO MUCH NOISE TO FIND CORNERS! ADJUST FILTER" << std::endl;
+    }
+    return Rect();
+}
+
 

@@ -10,6 +10,7 @@
 #include "Event.h"
 
 #include <deque>
+#include <cv.h>
 
 namespace cv {
     class Mat;
@@ -25,6 +26,8 @@ public:
     void addFrame(const cv::Mat &frame);
     cv::Mat* popFrame();
     void playbackLastFrames() const;
+
+    cv::Rect findTable(cv::Mat HSV);
 
 private:
     void _detectEventForLastPosition();

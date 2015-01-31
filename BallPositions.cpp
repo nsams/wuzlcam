@@ -9,6 +9,7 @@ using namespace cv;
 
 void BallPositions::add(int x, int y)
 {
+//     std::cout << "add " << x << " " << y << std::endl;
     unsigned speed = 0;
     if (!_positions.empty()) {
         speed = _positions.back().diffTo(x, y);
