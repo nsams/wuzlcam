@@ -38,10 +38,10 @@ Table::~Table()
     }
 }
 
-void Table::addPosition(int x, int y)
+void Table::addPosition(int x, int y, cv::Mat &frame)
 {
     _detectedPositions.add(x, y);
-    _detectEventForLastPosition();
+    _detectEventForLastPosition(frame);
 }
 
 void Table::addFrame(const cv::Mat &frame)
@@ -66,9 +66,7 @@ Mat *Table::popFrame()
     return 0;
 }
 
-
-
-void Table::_detectEventForLastPosition()
+void Table::_detectEventForLastPosition(cv::Mat &frame)
 {
 /*
 what we have to detect:
@@ -86,25 +84,73 @@ what we have to detect:
   - by bar
  */
 
+const int GOAL_LINE_BLUE_X = 20;
+const int GOAL_LINE_RED_X = 560-20;
+
     unsigned sz = _detectedPositions.size();
     if (sz > 1) {
-        BallPosition curPos = _detectedPositions.at(sz-1);
-        BallPosition prevPos = _detectedPositions.at(sz-2);
-        unsigned speedChange = abs(curPos.speed - prevPos.speed);
-    //             std::cout << "speed=" << diff << " prevSpeed" << prevSpeed << " speedChange=" << speedChange << std::endl;
+        BallPosition *curPos = _detectedPositions.at(sz-1);
+        BallPosition *prevPos = _detectedPositions.at(sz-2);
         Event* lastEvent = 0;
         if (!_events.empty()) lastEvent = _events.back();
-        if (speedChange > 50) {
-            //std::cout << "SHOT!!! at frame " << curPos.frameNum << " speedChange=" << speedChange << std::endl;
+
+        int speedChange = curPos->speed - prevPos->speed;
+        int speedChangePercent = 0;
+        if (curPos->speed) speedChangePercent = speedChange * 100 / curPos->speed;
+
+
+        if (curPos->interpolated && lastEvent && lastEvent->type != Event::GOAL) {
+            //ball not visible, probably goal?
+//             std::cout << "x: " << curPos->x << " curPos->angle" << curPos->angle << std::endl;
+            if (curPos->x < GOAL_LINE_BLUE_X && curPos->angle < 90 && curPos->angle > -90) {
+                Event* ev = new Event(Event::GOAL, 0, curPos);
+                _events.push_back(ev);
+                std::cout << "EVENT: " << ev->toString() << std::endl;
+            } else if (curPos->x > GOAL_LINE_RED_X && curPos->angle > 90 && curPos->angle < -90) {
+                Event* ev = new Event(Event::GOAL, 0, curPos);
+                _events.push_back(ev);
+                std::cout << "EVENT: " << ev->toString() << std::endl;
+            }
+        }
+        if (!curPos->interpolated && lastEvent && lastEvent->type == Event::GOAL) {
+            //we had a goal, ball came back out
+            std::cout << "x: " << curPos->x << " curPos->angle" << curPos->angle << std::endl;
+            if (curPos->x < GOAL_LINE_BLUE_X+30 && curPos->x >= GOAL_LINE_BLUE_X) {
+                Event* ev = new Event(Event::GOAL_BACK, 0, curPos);
+                _events.push_back(ev);
+                std::cout << "EVENT: " << ev->toString() << std::endl;
+            } else if (curPos->x > GOAL_LINE_RED_X-30 && curPos->x <= GOAL_LINE_RED_X) {
+                Event* ev = new Event(Event::GOAL_BACK, 0, curPos);
+                _events.push_back(ev);
+                std::cout << "EVENT: " << ev->toString() << std::endl;
+            }
+        }
+
+        //std::cout << "SPEED: " << "curPos=" << curPos->speed << " prevPos" << prevPos ->speed << " speedChange=" << speedChange << "=" << speedChangePercent << "%" <<  std::endl;
+        if (speedChange > 5 && speedChangePercent > 50 && curPos->x > GOAL_LINE_BLUE_X && curPos->x < GOAL_LINE_RED_X) {
+//         std::cout << "SHOT!!! at frame " << curPos->frameNum << " speedChange=" << speedChange << std::endl;
 //             std::cout << "bar number " << _getNearestBar(prevPos)->toString() << std::endl;
             Bar* bar = _getNearestBar(prevPos);
             if (bar && (!lastEvent || (lastEvent->type != Event::SHOT || lastEvent->byBar != bar))) {
-                Event* ev = new Event(Event::SHOT, bar);
+                Event* ev = new Event(Event::SHOT, bar, prevPos);
                 _events.push_back(ev);
                 std::cout << "EVENT: " << ev->toString() << std::endl;
                 //playbackLastFrames();
             }
         }
+
+        double directionChange = abs(curPos->angle - prevPos->angle);
+        //std::cout << "DIRECTION: " << curPos->angle <<  std::endl;
+        if (directionChange > 20 && curPos->x > GOAL_LINE_BLUE_X && curPos->x < GOAL_LINE_RED_X) {
+            Bar* bar = _getNearestBar(prevPos);
+            //std::cout << "direction at frame " << curPos->frameNum << " directionChange=" << directionChange << "°" << std::endl;
+            if (bar) {
+                Event* ev = new Event(Event::TOUCH, bar, prevPos);
+                _events.push_back(ev);
+                std::cout << "EVENT: " << ev->toString() << std::endl;
+            }
+        }
+
     }
 }
 
@@ -116,12 +162,31 @@ void Table::paint(Mat& frame) const
         (*it)->paint(frame);
     }
 
+
+    for(std::vector<Event*>::const_reverse_iterator it = _events.rbegin(); it != _events.rend(); ++it) {
+        if (_detectedPositions.back()->frameNum - (*it)->atPos->frameNum > 100) {
+            break;
+        }
+        (*it)->paint(frame);
+    }
+
     _detectedPositions.paint(frame);
+
+    if (_detectedPositions.size()) {
+        char buffer[33];
+        const float TALBE_WIDTH = 1.500; //in meters
+        float speed = ((float)_detectedPositions.back()->speed) * TALBE_WIDTH / 560 * 90 * 3.6;
+        sprintf(buffer, "%.1f km/h", speed);
+        putText(frame, buffer, Point(0, 40), 2, 0.5, Scalar(255,0,0), 2);
+    }
+
+    line(frame, Point(20, 0), Point(20, 1080), Scalar(255, 0, 0), 2);
+    line(frame, Point(frame.cols-20, 0), Point(frame.cols-20, 1080), Scalar(255, 0, 0), 2);
 }
 
-Bar* Table::_getNearestBar(BallPosition position)
+Bar* Table::_getNearestBar(BallPosition* position)
 {
-    return _getNearestBar(position.x, position.y);
+    return _getNearestBar(position->x, position->y);
 }
 
 Bar* Table::_getNearestBar(int x, int y)

@@ -16,16 +16,23 @@ namespace cv {
 class BallPositions
 {
 private:
-    std::vector<BallPosition> _positions;
+    std::vector<BallPosition*> _positions;
 public:
     BallPositions() {};
+    ~BallPositions();
 
     void paint(cv::Mat &frame) const;
     void add(int x, int y);
     void popLast();
 
-    int size();
-    BallPosition at(int index);
+    std::vector<BallPosition*>::iterator begin() { return _positions.begin(); }
+    std::vector<BallPosition*>::iterator end() { return _positions.end(); }
+    std::vector<BallPosition*>::reverse_iterator rbegin() { return _positions.rbegin(); }
+    std::vector<BallPosition*>::reverse_iterator rend() { return _positions.rend(); }
+    BallPosition* back() const { return _positions.back(); }
+
+    int size() const;
+    BallPosition* at(int index);
 };
 
 #endif

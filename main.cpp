@@ -21,7 +21,7 @@ int H_MIN = 22;
 int H_MAX = 45;
 int S_MIN = 83;
 int S_MAX = 200;
-int V_MIN = 135;
+int V_MIN = 122;
 int V_MAX = 237;
 
 //default capture width and height
@@ -74,6 +74,8 @@ void morphOps(Mat &thresh)
 
 void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
 {
+    x = y = -1;
+
     Mat threshold;
 
     //filter HSV image between values and store filtered image to threshold matrix
@@ -83,7 +85,7 @@ void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
     //and emphasize the filtered object(s)
     morphOps(threshold);
 
-    imshow("Thresholded Image", threshold);
+    //imshow("Thresholded Image", threshold);
 
     //these two vectors needed for output of findContours
     vector< vector<Point> > contours;
@@ -111,7 +113,7 @@ void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
                 if (area > MIN_OBJECT_AREA && area < MAX_OBJECT_AREA && area > refArea) {
                     x = moment.m10 / area;
                     y = moment.m01 / area;
-                    std::cout << "area " << area << std::endl;
+//                     std::cout << "area " << area << std::endl;
                     ballFound = true;
                     refArea = area;
                 } else {
@@ -151,7 +153,7 @@ int main(int argc, char* argv[])
     Table table;
 
     //create slider bars for HSV filtering
-    createTrackbars();
+//     createTrackbars();
 
     VideoCapture capture;
 
@@ -212,14 +214,13 @@ int main(int argc, char* argv[])
     const int showFrameAfterTicks = ((1000 / 25) * cv::getTickFrequency()) / 1000;
 
     bool paused = false;
-    bool slowMotion = false;
+    int slowMotion = 0;
 
-    Fps fps;
+    FpsCap fps(90);
 
     int pauseAtFrameNum = -1;
-    pauseAtFrameNum = 1;
+//     pauseAtFrameNum = 333;
 
-    Interval lastShownFrameInterval;
     Interval fullInterval;
     unsigned frameNum = 0;
     int64 lastShownFrameTick = -1;
@@ -283,8 +284,8 @@ int main(int argc, char* argv[])
             DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
-            if (!paused && x != -1 && y != -1) {
-                table.addPosition(x, y);
+            if (!paused) {
+                table.addPosition(x, y, cameraFeed);
                 DEBUGPERF( std::cout << "addPostion " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
             }
         }
@@ -293,6 +294,7 @@ int main(int argc, char* argv[])
 
         //show frames at 25fps, don't show if video processed in higher fps
         if (lastShownFrameTick == -1 || cv::getTickCount() > lastShownFrameTick+showFrameAfterTicks) {
+//         if (lastShownFrameTick == -1 || frameNum % 3 == 0) {
             lastShownFrameTick = cv::getTickCount();
 
             table.paint(cameraFeed);
@@ -300,28 +302,24 @@ int main(int argc, char* argv[])
             char buffer[33];
             sprintf(buffer, "%d fps, frame %d", fps.get(), frameNum);
             //std::cout << buffer << std::endl;
-            putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(0,255,0), 2);
+            putText(cameraFeed, buffer, Point(0, 20), 2, 0.5, Scalar(255,0,0), 2);
 
             imshow("Wuzl Cam", cameraFeed);
     //         imshow("HSV Image", HSV);
             DEBUGPERF( std::cout << "show image " << interval.valueAsMSecAndReset() << "ms" << std::endl; )
 
 
-            //delay 30ms so that screen can refresh.
-            //image will not appear without this waitKey() command
             char e;
             if (dropLateFrames) {
                 e = waitKey(1);
             } else {
-                int frameDuration = 1000 / 25/*fps*/;
-                if (slowMotion) frameDuration *= 3;
-//                 std::cout << frameDuration << " " << lastShownFrameInterval.valueAsMSec();
-                frameDuration -= (int)lastShownFrameInterval.valueAsMSec();
-                if (frameDuration < 1) frameDuration = 1;
-                std::cout << " wait " << frameDuration;
-                e = waitKey(frameDuration);
-                std::cout << " now at " << lastShownFrameInterval.valueAsMSec() << std::endl;
-                lastShownFrameInterval.reset();
+                unsigned int waitDuration = fps.getWaitMSec();
+                if (slowMotion) {
+                    waitDuration = 1000 / ((5 - slowMotion) * 10);
+                }
+                if (waitDuration == 0) waitDuration = 1; //shit, we lag behind - we still need 1ms pause to show images and respond to keyboard etc
+                //std::cout << "fps " << fps.get() << " wait " << waitDuration << std::endl;
+                e = waitKey(waitDuration);
             }
             DEBUGPERF( std::cout << "waitKey " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
 
@@ -329,7 +327,9 @@ int main(int argc, char* argv[])
             if( e=='p') paused = ! paused;
             // slow motion with 's'
             if (e=='s') {
-                slowMotion = ! slowMotion;
+                slowMotion++;
+            } else if (e == 'S' && slowMotion) {
+                slowMotion--;
             }
             // reverse with 'r'
             if (e=='r') {

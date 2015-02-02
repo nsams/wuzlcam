@@ -22,7 +22,7 @@ public:
     Table();
     ~Table();
     void paint(cv::Mat &frame) const;
-    void addPosition(int x, int y);
+    void addPosition(int x, int y, cv::Mat& frame);
     void addFrame(const cv::Mat &frame);
     cv::Mat* popFrame();
     void playbackLastFrames() const;
@@ -30,9 +30,9 @@ public:
     cv::Rect findTable(cv::Mat HSV);
 
 private:
-    void _detectEventForLastPosition();
+    void _detectEventForLastPosition(cv::Mat& frame);
 
-    Bar* _getNearestBar(BallPosition position);
+    Bar* _getNearestBar(BallPosition *position);
     Bar* _getNearestBar(int x, int y);
 
     BallPositions _detectedPositions;

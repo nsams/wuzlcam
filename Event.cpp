@@ -4,6 +4,13 @@
 */
 #include "Event.h"
 
+#include "BallPosition.h"
+#include <cv.h>
+
+
+
+using namespace cv;
+
 std::string Event::toString()
 {
     std::string ret;
@@ -17,7 +24,24 @@ std::string Event::toString()
         case GOAL:
             ret = "Tor";
             break;
+        case GOAL_BACK:
+            ret = "Tor heraus";
+            break;
     }
-    ret += " von " + byBar->toString();
+    if (byBar) ret += " von " + byBar->toString();
     return ret;
+}
+
+void Event::paint(cv::Mat& frame) const
+{
+    Scalar color;
+    switch (type) {
+        case SHOT:
+            color =  Scalar(0, 0, 255);
+            break;
+        case TOUCH:
+            color = Scalar(0, 255, 0);
+            break;
+    }
+    circle(frame, Point(atPos->x, atPos->y), 10, color, 2);
 }

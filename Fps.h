@@ -37,13 +37,36 @@ public:
     // Get fps
     unsigned int get() const
     {
-        return m_fps;
+        return (
+                m_fps //previsous second
+                + m_fpscount * (1000. / m_fpsinterval.valueAsMSec()) //fraction of current second
+               ) / (m_fps ? 2 : 1); //devided by 2 (because of the two seconds)
     }
 
 private:
     unsigned int m_fps;
     unsigned int m_fpscount;
     Interval m_fpsinterval;
+};
+
+class FpsCap : public Fps
+{
+public:
+    FpsCap(int expectedFps) : m_expectedFps(expectedFps), m_currentWaitMSec(0) {}
+    int getWaitMSec()
+    {
+        int currentFps = get();
+        int distance = currentFps - m_expectedFps;
+        double adjust = distance * 0.01;
+        //std::cout << "adjust " << adjust << std::endl;
+        m_currentWaitMSec += adjust;
+        if (m_currentWaitMSec < 0) m_currentWaitMSec = 0;
+        return m_currentWaitMSec;
+    }
+
+private:
+    int m_expectedFps;
+    double m_currentWaitMSec;
 };
 
 #endif

@@ -7,15 +7,19 @@
 
 class BallPosition {
 public:
-    BallPosition(unsigned _x, unsigned _y, unsigned _frameNum, unsigned _speed)
-        : x(_x), y(_y), frameNum(_frameNum), speed(_speed)  {}
+    BallPosition(unsigned _x, unsigned _y, unsigned _frameNum, unsigned _speed, double _angle, bool _interpolated)
+        : x(_x), y(_y), frameNum(_frameNum), speed(_speed), angle(_angle), interpolated(_interpolated)  {}
     unsigned x;
     unsigned y;
     unsigned frameNum;
-    unsigned speed;
+    int speed;
+    double angle;
+    bool interpolated;
 
-    unsigned diffTo(BallPosition p);
-    unsigned diffTo(unsigned x_, unsigned y_);
+    unsigned diffTo(const BallPosition *p) const;
+    unsigned diffTo(unsigned x_, unsigned y_) const;
+    double angleTo(const BallPosition* p) const;
+    double angleTo(unsigned x_, unsigned y_) const;
 };
 
 #endif
