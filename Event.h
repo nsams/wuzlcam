@@ -18,7 +18,9 @@ public:
         GOAL,
         GOAL_BACK,
         OUT,
-        OPENING
+        OPENING,
+        KICKOFF,
+        POSITION_BALL_TO_KICKOFF
     };
 
     Event(EventType _type, Bar* _byBar, BallPosition * _atPos)

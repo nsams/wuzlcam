@@ -19,9 +19,9 @@ using namespace cv;
 //initial min and max HSV filter values.
 int H_MIN = 22;
 int H_MAX = 45;
-int S_MIN = 83;
+int S_MIN = 100;
 int S_MAX = 200;
-int V_MIN = 122;
+int V_MIN = 130;
 int V_MAX = 237;
 
 //default capture width and height
@@ -85,7 +85,7 @@ void trackBall(int &x, int &y, Mat HSV, Mat &cameraFeed)
     //and emphasize the filtered object(s)
     morphOps(threshold);
 
-    //imshow("Thresholded Image", threshold);
+    // imshow("Thresholded Image", threshold);
 
     //these two vectors needed for output of findContours
     vector< vector<Point> > contours;
@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
     Table table;
 
     //create slider bars for HSV filtering
-//     createTrackbars();
+    //createTrackbars();
 
     VideoCapture capture;
 
@@ -274,11 +274,9 @@ int main(int argc, char* argv[])
             DEBUGPERF( std::cout << "2HSV " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )
         }
 
+        imshow("Raw Input", cameraFeed);
 
-        Rect tableRect =  table.findTable(HSV);
-        if (tableRect.width) {
-            cameraFeed = cameraFeed(tableRect);
-            HSV = HSV(tableRect);
+        if (table.findTable(HSV, cameraFeed)) {
 
             trackBall(x, y, HSV, cameraFeed);
             DEBUGPERF( std::cout << "trackBall " << perfInterval.valueAsMSecAndReset() << "ms" << std::endl; )

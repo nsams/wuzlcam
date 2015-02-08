@@ -98,23 +98,43 @@ const int GOAL_LINE_RED_X = 560-20;
         int speedChangePercent = 0;
         if (curPos->speed) speedChangePercent = speedChange * 100 / curPos->speed;
 
+        if (lastEvent && lastEvent->type == Event::POSITION_BALL_TO_KICKOFF) {
+            Bar* bar = _getNearestBar(curPos);
+            if (bar && bar->position == Bar::MIDFIELD) {
+                if (curPos->speed == 0) {
+                    Event* ev = new Event(Event::KICKOFF, bar, curPos);
+                    _events.push_back(ev);
+                    std::cout << "EVENT: " << ev->toString() << std::endl;
+                }
+            }
+        }
 
-        if (curPos->interpolated && lastEvent && lastEvent->type != Event::GOAL) {
+        if (curPos->interpolated && lastEvent && lastEvent->type != Event::GOAL && lastEvent->type != Event::POSITION_BALL_TO_KICKOFF) {
             //ball not visible, probably goal?
-//             std::cout << "x: " << curPos->x << " curPos->angle" << curPos->angle << std::endl;
-            if (curPos->x < GOAL_LINE_BLUE_X && curPos->angle < 90 && curPos->angle > -90) {
+            //std::cout << "x: " << curPos->x << " curPos->angle" << curPos->angle << std::endl;
+            if (curPos->x < GOAL_LINE_BLUE_X+20 && curPos->angle < 180) {
                 Event* ev = new Event(Event::GOAL, 0, curPos);
                 _events.push_back(ev);
                 std::cout << "EVENT: " << ev->toString() << std::endl;
-            } else if (curPos->x > GOAL_LINE_RED_X && curPos->angle > 90 && curPos->angle < -90) {
+            } else if (curPos->x > GOAL_LINE_RED_X-20 && curPos->angle > 180) {
                 Event* ev = new Event(Event::GOAL, 0, curPos);
                 _events.push_back(ev);
                 std::cout << "EVENT: " << ev->toString() << std::endl;
             }
         }
+
+        if (lastEvent && lastEvent->type == Event::GOAL) {
+            if (curPos->frameNum - lastEvent->atPos->frameNum > 90*2) { //2 seconds passed
+                //we had a goal, now kickoff
+                Event* ev = new Event(Event::POSITION_BALL_TO_KICKOFF, 0, curPos);
+                _events.push_back(ev);
+                std::cout << "EVENT: " << ev->toString() << std::endl;
+            }
+        }
+
         if (!curPos->interpolated && lastEvent && lastEvent->type == Event::GOAL) {
             //we had a goal, ball came back out
-            std::cout << "x: " << curPos->x << " curPos->angle" << curPos->angle << std::endl;
+            //std::cout << "x: " << curPos->x << " curPos->angle" << curPos->angle << std::endl;
             if (curPos->x < GOAL_LINE_BLUE_X+30 && curPos->x >= GOAL_LINE_BLUE_X) {
                 Event* ev = new Event(Event::GOAL_BACK, 0, curPos);
                 _events.push_back(ev);
@@ -126,28 +146,31 @@ const int GOAL_LINE_RED_X = 560-20;
             }
         }
 
-        //std::cout << "SPEED: " << "curPos=" << curPos->speed << " prevPos" << prevPos ->speed << " speedChange=" << speedChange << "=" << speedChangePercent << "%" <<  std::endl;
-        if (speedChange > 5 && speedChangePercent > 50 && curPos->x > GOAL_LINE_BLUE_X && curPos->x < GOAL_LINE_RED_X) {
-//         std::cout << "SHOT!!! at frame " << curPos->frameNum << " speedChange=" << speedChange << std::endl;
-//             std::cout << "bar number " << _getNearestBar(prevPos)->toString() << std::endl;
-            Bar* bar = _getNearestBar(prevPos);
-            if (bar && (!lastEvent || (lastEvent->type != Event::SHOT || lastEvent->byBar != bar))) {
-                Event* ev = new Event(Event::SHOT, bar, prevPos);
-                _events.push_back(ev);
-                std::cout << "EVENT: " << ev->toString() << std::endl;
-                //playbackLastFrames();
-            }
-        }
 
-        double directionChange = abs(curPos->angle - prevPos->angle);
-        //std::cout << "DIRECTION: " << curPos->angle <<  std::endl;
-        if (directionChange > 20 && curPos->x > GOAL_LINE_BLUE_X && curPos->x < GOAL_LINE_RED_X) {
-            Bar* bar = _getNearestBar(prevPos);
-            //std::cout << "direction at frame " << curPos->frameNum << " directionChange=" << directionChange << "°" << std::endl;
-            if (bar) {
-                Event* ev = new Event(Event::TOUCH, bar, prevPos);
-                _events.push_back(ev);
-                std::cout << "EVENT: " << ev->toString() << std::endl;
+        if (!lastEvent || lastEvent->type != Event::POSITION_BALL_TO_KICKOFF) {
+            //std::cout << "SPEED: " << "curPos=" << curPos->speed << " prevPos" << prevPos ->speed << " speedChange=" << speedChange << "=" << speedChangePercent << "%" <<  std::endl;
+            if (speedChange > 5 && speedChangePercent > 50 && curPos->x > GOAL_LINE_BLUE_X && curPos->x < GOAL_LINE_RED_X) {
+    //         std::cout << "SHOT!!! at frame " << curPos->frameNum << " speedChange=" << speedChange << std::endl;
+    //             std::cout << "bar number " << _getNearestBar(prevPos)->toString() << std::endl;
+                Bar* bar = _getNearestBar(prevPos);
+                if (bar && (!lastEvent || (lastEvent->type != Event::SHOT || lastEvent->byBar != bar))) {
+                    Event* ev = new Event(Event::SHOT, bar, prevPos);
+                    _events.push_back(ev);
+                    std::cout << "EVENT: " << ev->toString() << std::endl;
+                    //playbackLastFrames();
+                }
+            }
+
+            double directionChange = abs(curPos->angle - prevPos->angle);
+            //std::cout << "DIRECTION: " << curPos->angle <<  " change" << directionChange << std::endl;
+            if (directionChange > 20 && curPos->x > GOAL_LINE_BLUE_X && curPos->x < GOAL_LINE_RED_X) {
+                Bar* bar = _getNearestBar(prevPos);
+                //std::cout << "direction at frame " << curPos->frameNum << " directionChange=" << directionChange << "°" << std::endl;
+                if (bar && !lastEvent || !(lastEvent->type == Event::TOUCH && lastEvent->byBar ==bar)) {
+                    Event* ev = new Event(Event::TOUCH, bar, prevPos);
+                    _events.push_back(ev);
+                    std::cout << "EVENT: " << ev->toString() << std::endl;
+                }
             }
         }
 
@@ -222,10 +245,61 @@ void Table::playbackLastFrames() const
     }
 }
 
-cv::Rect Table::findTable(Mat HSV)
+// based on http://www.pyimagesearch.com/2014/08/25/4-point-opencv-getperspective-transform-example/
+void Table::_perspectiveTransformTable(Mat& HSV, Mat& cameraFeed)
+{
+    Point tl = _lastTablePositionTopLeft;
+    Point tr = _lastTablePositionTopRight;
+    Point br = _lastTablePositionBottomRight;
+    Point bl = _lastTablePositionBottomLeft;
+
+    Point2f rect[4];
+    rect[0] = tl;
+    rect[1] = tr;
+    rect[2] = br;
+    rect[3] = bl;
+/*
+    //compute the width of the new image, which will be the
+    //maximum distance between bottom-right and bottom-left
+    //x-coordiates or the top-right and top-left x-coordinates
+    int widthA = sqrt(pow(br.x - bl.x, 2) + pow(br.x - bl.x, 2));
+    int widthB = sqrt(pow(tr.x - tl.x, 2) + pow(tr.x - tl.x, 2));
+    int maxWidth = max(widthA, widthB);
+
+    // compute the height of the new image, which will be the
+    // maximum distance between the top-right and bottom-right
+    // y-coordinates or the top-left and bottom-left y-coordinates
+    int heightA = sqrt(pow(tr.y - br.y, 2) + pow(tr.y - br.y, 2));
+    int heightB = sqrt(pow(tl.y - bl.y, 2) + pow(tl.y - bl.y, 2));
+    int maxHeight = max(heightA, heightB);
+*/
+    int maxWidth = 560;
+    int maxHeight = 320;
+
+
+    // now that we have the dimensions of the new image, construct
+    // the set of destination points to obtain a "birds eye view",
+    // (i.e. top-down view) of the image, again specifying points
+    // in the top-left, top-right, bottom-right, and bottom-left
+    // order
+    Point2f dst[4];
+    dst[0] = Point2f(0, 0);
+    dst[1] = Point2f(maxWidth - 1, 0);
+    dst[2] = Point2f(maxWidth - 1, maxHeight - 1);
+    dst[3] = Point2f(0, maxHeight - 1);
+
+    // compute the perspective transform matrix and then apply it
+    Mat matrix = cv::getPerspectiveTransform(rect, dst);
+    cv::warpPerspective(HSV, HSV, matrix, Size(maxWidth, maxHeight));
+    cv::warpPerspective(cameraFeed, cameraFeed, matrix, Size(maxWidth, maxHeight));
+}
+
+
+bool Table::findTable(cv::Mat &HSV, cv::Mat &cameraFeed)
 {
     if (_updateTableIn > 0) {
-        return _lastTablePosition;
+        _perspectiveTransformTable(HSV, cameraFeed);
+        return true;
     }
 
     Mat threshold;
@@ -303,14 +377,18 @@ cv::Rect Table::findTable(Mat HSV)
         }
 //         imshow("Thresholded Image Corners", threshold);
         if (cornersFound == 4) {
-            _lastTablePosition = Rect(topLeft.x, topLeft.y, bottomRight.x-topLeft.x, bottomRight.y-topLeft.y);
+            _lastTablePositionTopLeft = topLeft;
+            _lastTablePositionTopRight = topRight;
+            _lastTablePositionBottomRight = bottomRight;
+            _lastTablePositionBottomLeft = bottomLeft;
             _updateTableIn = 90; //update every second
-            return _lastTablePosition;
+            _perspectiveTransformTable(HSV, cameraFeed);
+            return true;
         }
     } else {
         std::cout << "TOO MUCH NOISE TO FIND CORNERS! ADJUST FILTER" << std::endl;
     }
-    return Rect();
+    return false;
 }
 
 

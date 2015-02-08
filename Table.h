@@ -27,7 +27,7 @@ public:
     cv::Mat* popFrame();
     void playbackLastFrames() const;
 
-    cv::Rect findTable(cv::Mat HSV);
+    bool findTable(cv::Mat &HSV, cv::Mat &cameraFeed); //modified HSV and cameraFeed
 
 private:
     void _detectEventForLastPosition(cv::Mat& frame);
@@ -41,7 +41,13 @@ private:
     std::deque<cv::Mat*> _lastFrames;
 
     int _updateTableIn;
-    cv::Rect _lastTablePosition;
+    cv::Point _lastTablePositionTopLeft;
+    cv::Point _lastTablePositionTopRight;
+    cv::Point _lastTablePositionBottomRight;
+    cv::Point _lastTablePositionBottomLeft;
+
+    //apply lastTablePosition points to perspective transform input
+    void _perspectiveTransformTable(cv::Mat &HSV, cv::Mat &cameraFeed);
 };
 
 #endif

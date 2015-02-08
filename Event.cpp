@@ -27,6 +27,12 @@ std::string Event::toString()
         case GOAL_BACK:
             ret = "Tor heraus";
             break;
+        case KICKOFF:
+            ret = "Anstoß";
+            break;
+        case POSITION_BALL_TO_KICKOFF:
+            ret = "Ball zum Anstoß positionieren";
+            break;
     }
     if (byBar) ret += " von " + byBar->toString();
     return ret;

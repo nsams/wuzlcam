@@ -27,11 +27,13 @@ double BallPosition::angleTo(const BallPosition* p) const
 double BallPosition::angleTo(unsigned int x_, unsigned int y_) const
 {
     if ((x - x_) == 0) {
-        if (y > y_) return -90;
-        return 90;
+        if (y > y_) return 180;
+        return 0;
     }
     double ret =  atan(((double)y - (double)y_) / ((double)x - (double)x_));
     ret *= 180 / M_PI;
+    ret += 90;
+    if (y > y_) ret += 180;
     return ret;
 }
 
